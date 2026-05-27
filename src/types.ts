@@ -51,6 +51,20 @@ export interface MiMoRequest {
 	};
 }
 
+export interface MiMoUsage {
+	prompt_tokens: number;
+	completion_tokens: number;
+	total_tokens: number;
+	prompt_cache_hit_tokens?: number;
+	prompt_cache_miss_tokens?: number;
+	completion_tokens_details?: {
+		reasoning_tokens: number;
+	};
+	prompt_tokens_details?: {
+		cached_tokens: number;
+	};
+}
+
 export interface MiMoStreamChunk {
 	id: string;
 	object: string;
@@ -74,17 +88,7 @@ export interface MiMoStreamChunk {
 		};
 		finish_reason: string | null;
 	}>;
-	usage?: {
-		prompt_tokens: number;
-		completion_tokens: number;
-		total_tokens: number;
-		completion_tokens_details?: {
-			reasoning_tokens: number;
-		};
-		prompt_tokens_details?: {
-			cached_tokens: number;
-		};
-	};
+	usage?: MiMoUsage;
 }
 
 // ---- Stream callbacks ----
@@ -95,17 +99,7 @@ export interface StreamCallbacks {
 	onToolCall: (toolCall: MiMoToolCall) => void;
 	onError: (error: Error) => void;
 	onDone: () => void;
-	onUsage?: (usage: {
-		prompt_tokens: number;
-		completion_tokens: number;
-		total_tokens: number;
-		completion_tokens_details?: {
-			reasoning_tokens: number;
-		};
-		prompt_tokens_details?: {
-			cached_tokens: number;
-		};
-	}) => void;
+	onUsage?: (usage: MiMoUsage) => void;
 }
 
 // ---- Model definitions ----
