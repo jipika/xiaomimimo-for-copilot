@@ -7,7 +7,7 @@
  */
 
 /** Default model ID used for the vision proxy when auto-detection is enabled. */
-export const DEFAULT_VISION_MODEL_ID = 'copilot';
+export const DEFAULT_VISION_MODEL_ID = 'oswe-vscode-prime';
 
 /**
  * Prompt sent to the vision proxy model when describing image attachments

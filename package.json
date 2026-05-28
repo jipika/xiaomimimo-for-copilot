@@ -174,8 +174,8 @@
         },
         "mimo-copilot.visionModel": {
           "type": "string",
-          "default": "copilot",
-          "description": "Model ID to use for describing images when the selected MiMo model doesn't support vision (mimo-v2.5-pro, mimo-v2-flash). Uses Copilot's built-in vision model by default."
+          "default": "oswe-vscode-prime",
+          "description": "Model ID to use for describing images when the selected MiMo model doesn't support vision (mimo-v2.5-pro, mimo-v2-flash). Uses oswe-vscode-prime by default."
         },
         "mimo-copilot.visionPrompt": {
           "type": "string",
