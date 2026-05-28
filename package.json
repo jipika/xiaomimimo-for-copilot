@@ -154,6 +154,20 @@
           ],
           "description": "Controls the thinking/reasoning mode for MiMo models. 'auto' enables thinking for thinking-capable models, 'enabled' forces it on, 'disabled' forces it off."
         },
+        "mimo-copilot.temperature": {
+          "type": "number",
+          "default": -1,
+          "minimum": -1,
+          "maximum": 1.5,
+          "description": "Sampling temperature (0-1.5). Higher values = more creative, lower = more deterministic. Set to -1 to use API default per model (mimo-v2-flash: 0.3, others: 1.0)."
+        },
+        "mimo-copilot.topP": {
+          "type": "number",
+          "default": -1,
+          "minimum": -1,
+          "maximum": 1.0,
+          "description": "Nucleus sampling parameter (0.01-1.0). Controls diversity. Set to -1 to use API default (0.95). Recommended: adjust either temperature or top_p, not both."
+        },
         "mimo-copilot.modelIdOverrides": {
           "type": "object",
           "default": {

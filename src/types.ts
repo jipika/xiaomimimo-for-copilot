@@ -44,13 +44,14 @@ export interface MiMoRequest {
 	temperature?: number;
 	top_p?: number;
 	max_tokens?: number;
+	max_completion_tokens?: number;
 	tools?: MiMoTool[];
 	tool_choice?: 'none' | 'auto' | 'required';
 	stream_options?: {
 		include_usage: boolean;
 	};
-	chat_template_kwargs?: {
-		enable_thinking?: boolean;
+	thinking?: {
+		type: 'enabled' | 'disabled';
 	};
 }
 

@@ -2,6 +2,13 @@ import type { CancellationToken } from 'vscode';
 import { logger } from './logger';
 import type { MiMoRequest, MiMoStreamChunk, MiMoToolCall, StreamCallbacks } from './types';
 
+/** Retry configuration for transient errors. */
+const MAX_RETRIES = 3;
+const BASE_DELAY_MS = 1000;
+
+/** HTTP status codes that warrant a retry. */
+const RETRYABLE_STATUS_CODES = new Set([429, 500, 503]);
+
 /**
  * Lightweight SSE-streaming MiMo API client.
  * No external dependencies — uses Node's built-in fetch.
@@ -15,6 +22,7 @@ export class MiMoClient {
 	/**
 	 * Stream a chat completion from the MiMo API.
 	 * Parses SSE chunks and dispatches callbacks for content, thinking, and tool calls.
+	 * Retries on transient errors (429, 500, 503) with exponential backoff.
 	 */
 	async streamChatCompletion(
 		request: MiMoRequest,
@@ -22,7 +30,6 @@ export class MiMoClient {
 		cancellationToken?: CancellationToken,
 	): Promise<void> {
 		const controller = new AbortController();
-
 		const cancelListener = cancellationToken?.onCancellationRequested(() => {
 			controller.abort();
 		});
@@ -35,147 +42,188 @@ export class MiMoClient {
 			};
 
 			const url = `${this.baseUrl}/chat/completions`;
+			const headers = {
+				'Content-Type': 'application/json',
+				Authorization: `Bearer ${this.apiKey}`,
+			};
 
-			const response = await fetch(url, {
-				method: 'POST',
-				headers: {
-					'Content-Type': 'application/json',
-					Authorization: `Bearer ${this.apiKey}`,
-				},
-				body: JSON.stringify(requestBody),
-				signal: controller.signal,
-			});
+			let lastError: Error | undefined;
 
-			if (!response.ok) {
-				const errorText = await response.text();
-				let errorMessage: string;
-				try {
-					const errorJson = JSON.parse(errorText);
-					errorMessage = errorJson.error?.message || errorJson.message || errorText;
-				} catch {
-					errorMessage = errorText;
-				}
-				throw new Error(`MiMo API error (${response.status}): ${errorMessage}`);
-			}
-
-			if (!response.body) {
-				throw new Error('No response body received');
-			}
-
-			const reader = response.body.getReader();
-			const decoder = new TextDecoder();
-			let buffer = '';
-
-			// Accumulate tool call deltas by index, then emit on finish_reason=stop/tool_calls
-			const pendingToolCalls = new Map<number, MiMoToolCall>();
-
-			while (true) {
+			for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
 				if (cancellationToken?.isCancellationRequested) {
-					controller.abort();
 					break;
 				}
 
-				const { done, value } = await reader.read();
-				if (done) {
-					break;
+				// Wait before retry (exponential backoff)
+				if (attempt > 0) {
+					const delay = BASE_DELAY_MS * 2 ** (attempt - 1);
+					logger.warn(`Retrying request (attempt ${attempt}/${MAX_RETRIES}) after ${delay}ms`);
+					await new Promise((resolve) => setTimeout(resolve, delay));
 				}
 
-				buffer += decoder.decode(value, { stream: true });
+				try {
+					const response = await fetch(url, {
+						method: 'POST',
+						headers,
+						body: JSON.stringify(requestBody),
+						signal: controller.signal,
+					});
 
-				const lines = buffer.split('\n');
-				buffer = lines.pop() || '';
+					if (!response.ok) {
+						const errorText = await response.text();
+						let errorMessage: string;
+						try {
+							const errorJson = JSON.parse(errorText);
+							errorMessage = errorJson.error?.message || errorJson.message || errorText;
+						} catch {
+							errorMessage = errorText;
+						}
 
-				for (const line of lines) {
-					const trimmed = line.trim();
+						const error = new Error(`MiMo API error (${response.status}): ${errorMessage}`);
+						if (RETRYABLE_STATUS_CODES.has(response.status) && attempt < MAX_RETRIES) {
+							lastError = error;
+							continue;
+						}
+						throw error;
+					}
 
-					if (!trimmed || trimmed.startsWith(':')) {
+					if (!response.body) {
+						throw new Error('No response body received');
+					}
+
+					// Success — process the stream
+					await this.processStream(response.body, callbacks, controller, cancellationToken);
+					return;
+				} catch (error) {
+					if (error instanceof Error && error.name === 'AbortError') {
+						callbacks.onDone();
+						return;
+					}
+					if (!RETRYABLE_STATUS_CODES.has((error as { status?: number }).status ?? 0)) {
+						throw error;
+					}
+					lastError = error instanceof Error ? error : new Error(String(error));
+				}
+			}
+
+			// All retries exhausted
+			throw lastError ?? new Error('MiMo API request failed after retries');
+		} finally {
+			cancelListener?.dispose();
+		}
+	}
+
+	private async processStream(
+		body: ReadableStream<Uint8Array>,
+		callbacks: StreamCallbacks,
+		controller: AbortController,
+		cancellationToken?: CancellationToken,
+	): Promise<void> {
+		const reader = body.getReader();
+		const decoder = new TextDecoder();
+		let buffer = '';
+
+		// Accumulate tool call deltas by index, then emit on finish_reason=stop/tool_calls
+		const pendingToolCalls = new Map<number, MiMoToolCall>();
+
+		while (true) {
+			if (cancellationToken?.isCancellationRequested) {
+				controller.abort();
+				break;
+			}
+
+			const { done, value } = await reader.read();
+			if (done) {
+				break;
+			}
+
+			buffer += decoder.decode(value, { stream: true });
+
+			const lines = buffer.split('\n');
+			buffer = lines.pop() || '';
+
+			for (const line of lines) {
+				const trimmed = line.trim();
+
+				if (!trimmed || trimmed.startsWith(':')) {
+					continue;
+				}
+
+				if (trimmed === 'data: [DONE]') {
+					// Flush any remaining tool calls
+					for (const tc of pendingToolCalls.values()) {
+						callbacks.onToolCall(tc);
+					}
+					pendingToolCalls.clear();
+					callbacks.onDone();
+					return;
+				}
+
+				if (!trimmed.startsWith('data: ')) {
+					continue;
+				}
+
+				const jsonStr = trimmed.slice(6);
+				try {
+					const chunk: MiMoStreamChunk = JSON.parse(jsonStr);
+					const choice = chunk.choices?.[0];
+
+					// Capture usage stats from the API for token-count calibration.
+					if (chunk.usage && callbacks.onUsage) {
+						callbacks.onUsage(chunk.usage);
+					}
+
+					if (!choice) {
 						continue;
 					}
 
-					if (trimmed === 'data: [DONE]') {
-						// Flush any remaining tool calls
+					// Thinking content → report with correct field name so VS Code renders collapsible blocks
+					const reasoning = choice.delta.reasoning_content;
+					if (reasoning) {
+						callbacks.onThinking(reasoning);
+					}
+
+					// Regular content
+					if (choice.delta.content) {
+						callbacks.onContent(choice.delta.content);
+					}
+
+					// Tool calls — accumulate deltas by index
+					if (choice.delta.tool_calls) {
+						for (const tc of choice.delta.tool_calls) {
+							let pending = pendingToolCalls.get(tc.index);
+							if (!pending && tc.id) {
+								pending = {
+									id: tc.id,
+									type: 'function',
+									function: { name: '', arguments: '' },
+								};
+								pendingToolCalls.set(tc.index, pending);
+							}
+							if (pending) {
+								if (tc.function?.name) {
+									pending.function.name += tc.function.name;
+								}
+								if (tc.function?.arguments) {
+									pending.function.arguments += tc.function.arguments;
+								}
+							}
+						}
+					}
+
+					// Flush pending tool calls on finish
+					if (choice.finish_reason === 'tool_calls' || choice.finish_reason === 'stop') {
 						for (const tc of pendingToolCalls.values()) {
 							callbacks.onToolCall(tc);
 						}
 						pendingToolCalls.clear();
-						callbacks.onDone();
-						return;
 					}
-
-					if (!trimmed.startsWith('data: ')) {
-						continue;
-					}
-
-					const jsonStr = trimmed.slice(6);
-					try {
-						const chunk: MiMoStreamChunk = JSON.parse(jsonStr);
-						const choice = chunk.choices?.[0];
-
-						// Capture usage stats from the API for token-count calibration.
-						if (chunk.usage && callbacks.onUsage) {
-							callbacks.onUsage(chunk.usage);
-						}
-
-						if (!choice) {
-							continue;
-						}
-
-						// Thinking content → report with correct field name so VS Code renders collapsible blocks
-						const reasoning = choice.delta.reasoning_content;
-						if (reasoning) {
-							callbacks.onThinking(reasoning);
-						}
-
-						// Regular content
-						if (choice.delta.content) {
-							callbacks.onContent(choice.delta.content);
-						}
-
-						// Tool calls — accumulate deltas by index
-						if (choice.delta.tool_calls) {
-							for (const tc of choice.delta.tool_calls) {
-								let pending = pendingToolCalls.get(tc.index);
-								if (!pending && tc.id) {
-									pending = {
-										id: tc.id,
-										type: 'function',
-										function: { name: '', arguments: '' },
-									};
-									pendingToolCalls.set(tc.index, pending);
-								}
-								if (pending) {
-									if (tc.function?.name) {
-										pending.function.name += tc.function.name;
-									}
-									if (tc.function?.arguments) {
-										pending.function.arguments += tc.function.arguments;
-									}
-								}
-							}
-						}
-
-						// Flush pending tool calls on finish
-						if (choice.finish_reason === 'tool_calls' || choice.finish_reason === 'stop') {
-							for (const tc of pendingToolCalls.values()) {
-								callbacks.onToolCall(tc);
-							}
-							pendingToolCalls.clear();
-						}
-					} catch (e) {
-						logger.error('Failed to parse SSE chunk:', jsonStr.slice(0, 200), e);
-					}
+				} catch (e) {
+					logger.error('Failed to parse SSE chunk:', jsonStr.slice(0, 200), e);
 				}
 			}
-
-			callbacks.onDone();
-		} catch (error) {
-			if (error instanceof Error && error.name === 'AbortError') {
-				callbacks.onDone();
-				return;
-			}
-			callbacks.onError(error instanceof Error ? error : new Error(String(error)));
-		} finally {
-			cancelListener?.dispose();
 		}
+
+		callbacks.onDone();
 	}
 }

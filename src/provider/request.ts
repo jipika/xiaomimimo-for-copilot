@@ -1,7 +1,7 @@
 import vscode from 'vscode';
 import { AuthManager } from '../auth';
 import { MiMoClient } from '../client';
-import { getApiModelId, getBaseUrl, getMaxTokens, getThinkingMode } from '../config';
+import { getApiModelId, getBaseUrl, getMaxTokens, getTemperature, getThinkingMode, getTopP } from '../config';
 import { MODELS } from '../consts';
 import type { MiMoRequest } from '../types';
 import { convertMessages, convertTools, countMessageChars } from './convert';
@@ -46,6 +46,8 @@ export async function prepareChatRequest({
 	const isThinkingModel = modelDef?.capabilities.thinking ?? false;
 	const maxTokens = getMaxTokens();
 	const thinkingMode = getThinkingMode();
+	const temperature = getTemperature();
+	const topP = getTopP();
 
 	// Determine if thinking should be enabled based on setting and model capability
 	const enableThinking =
@@ -65,9 +67,9 @@ export async function prepareChatRequest({
 		tools,
 		tool_choice: tools && tools.length > 0 ? 'auto' : undefined,
 		max_tokens: maxTokens,
-		chat_template_kwargs: {
-			enable_thinking: enableThinking,
-		},
+		temperature,
+		top_p: topP,
+		thinking: enableThinking ? { type: 'enabled' } : { type: 'disabled' },
 	};
 
 	logRequestDiagnostics({

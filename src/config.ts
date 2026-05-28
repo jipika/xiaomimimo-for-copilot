@@ -45,3 +45,23 @@ export function getThinkingMode(): ThinkingMode {
 	const config = vscode.workspace.getConfiguration(CONFIG_SECTION);
 	return config.get<ThinkingMode>('thinkingMode', 'auto');
 }
+
+/**
+ * Get the configured temperature.
+ * Returns `undefined` when set to -1 (use API default per model).
+ */
+export function getTemperature(): number | undefined {
+	const config = vscode.workspace.getConfiguration(CONFIG_SECTION);
+	const value = config.get<number>('temperature', -1);
+	return value >= 0 ? value : undefined;
+}
+
+/**
+ * Get the configured top_p.
+ * Returns `undefined` when set to -1 (use API default).
+ */
+export function getTopP(): number | undefined {
+	const config = vscode.workspace.getConfiguration(CONFIG_SECTION);
+	const value = config.get<number>('topP', -1);
+	return value >= 0 ? value : undefined;
+}
