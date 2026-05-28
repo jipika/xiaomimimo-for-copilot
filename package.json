@@ -172,18 +172,23 @@
           "type": "object",
           "default": {
             "mimo-v2.5-pro": "mimo-v2.5-pro",
-            "mimo-v2.5": "mimo-v2.5"
+            "mimo-v2.5": "mimo-v2.5",
+            "mimo-v2-flash": "mimo-v2-flash"
           },
           "description": "Override the API model ID sent for each MiMo model. Defaults are prefilled with official MiMo IDs; change them only when using a compatible third-party API that uses different model names.",
           "additionalProperties": false,
           "properties": {
             "mimo-v2.5-pro": {
               "type": "string",
-              "description": "API model ID for MiMo V2.5 Pro"
+              "description": "API model ID for MiMo V2.5 Pro (1M context)"
             },
             "mimo-v2.5": {
               "type": "string",
-              "description": "API model ID for MiMo V2.5"
+              "description": "API model ID for MiMo V2.5 (1M context)"
+            },
+            "mimo-v2-flash": {
+              "type": "string",
+              "description": "API model ID for MiMo V2 Flash (256K context)"
             }
           }
         }
