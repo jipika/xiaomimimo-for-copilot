@@ -11,29 +11,40 @@ export async function stripImagesIfNeeded(
 	messages: readonly vscode.LanguageModelChatRequestMessage[],
 	modelDef: ModelDefinition | undefined,
 ): Promise<readonly vscode.LanguageModelChatRequestMessage[]> {
+	logger.info(`[Vision] Checking model: ${modelDef?.id}, imageInput: ${modelDef?.capabilities.imageInput}`);
+
 	if (modelDef?.capabilities.imageInput) {
+		logger.info(`[Vision] Model supports vision, passing images through`);
 		return messages;
 	}
 
-	const hasImages = messages.some((m) =>
-		m.content.some(
-			(p) => p instanceof vscode.LanguageModelDataPart && p.mimeType.startsWith('image/'),
-		),
-	);
+	// Count images in messages
+	let imageCount = 0;
+	for (const m of messages) {
+		for (const p of m.content) {
+			if (p instanceof vscode.LanguageModelDataPart && p.mimeType.startsWith('image/')) {
+				imageCount++;
+			}
+		}
+	}
 
-	if (!hasImages) {
+	logger.info(`[Vision] Found ${imageCount} images in messages`);
+
+	if (imageCount === 0) {
 		return messages;
 	}
 
 	logger.info(
-		`Model "${modelDef?.id}" does not support vision. Using vision proxy to describe images.`,
+		`[Vision] Model "${modelDef?.id}" does not support vision. Using vision proxy to describe ${imageCount} image(s).`,
 	);
 
 	const resolver = createVisionResolver();
 	try {
-		return await resolver.resolve(messages);
+		const result = await resolver.resolve(messages);
+		logger.info(`[Vision] Successfully resolved images`);
+		return result;
 	} catch (error) {
-		logger.warn('Vision proxy failed, stripping images:', error);
+		logger.error('[Vision] Proxy failed, stripping images:', error);
 		return messages.map((m) => {
 			const filtered = m.content.filter(
 				(p) => !(p instanceof vscode.LanguageModelDataPart && p.mimeType.startsWith('image/')),

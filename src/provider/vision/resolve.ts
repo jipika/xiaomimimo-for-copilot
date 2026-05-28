@@ -19,23 +19,30 @@ export function createVisionResolver(): {
 
 	return {
 		async resolve(messages) {
-			// Check if any messages have images
-			const hasImages = messages.some((m) =>
-				m.content.some(
-					(p) => p instanceof vscode.LanguageModelDataPart && p.mimeType.startsWith('image/'),
-				),
-			);
+			// Count images in messages
+			let imageCount = 0;
+			for (const m of messages) {
+				for (const p of m.content) {
+					if (p instanceof vscode.LanguageModelDataPart && p.mimeType.startsWith('image/')) {
+						imageCount++;
+					}
+				}
+			}
 
-			if (!hasImages) {
+			logger.info(`[VisionResolver] Resolving ${imageCount} images`);
+
+			if (imageCount === 0) {
 				return messages;
 			}
 
 			// Get the vision proxy model
 			const visionModel = await visionModelGetter.get();
 			if (!visionModel) {
-				logger.warn('No vision proxy model available, stripping images');
+				logger.warn('[VisionResolver] No vision proxy model available, stripping images');
 				return stripImages(messages);
 			}
+
+			logger.info(`[VisionResolver] Using model: ${visionModel.id}`);
 
 			// Resolve each message with images
 			const resolved: vscode.LanguageModelChatRequestMessage[] = [];
@@ -50,6 +57,8 @@ export function createVisionResolver(): {
 					continue;
 				}
 
+				logger.info(`[VisionResolver] Processing ${imageParts.length} images in message`);
+
 				// Get text content from the message
 				const textParts = message.content.filter(
 					(p) => p instanceof vscode.LanguageModelTextPart,
@@ -60,10 +69,12 @@ export function createVisionResolver(): {
 				const descriptions: string[] = [];
 				for (const img of imageParts) {
 					try {
+						logger.info(`[VisionResolver] Describing image: ${img.mimeType}, size: ${img.data.length} bytes`);
 						const description = await describeImage(visionModel, img);
+						logger.info(`[VisionResolver] Got description: ${description.substring(0, 100)}...`);
 						descriptions.push(description);
 					} catch (error) {
-						logger.warn('Failed to describe image:', error);
+						logger.error('[VisionResolver] Failed to describe image:', error);
 						descriptions.push(IMAGE_DESCRIPTION_UNAVAILABLE);
 					}
 				}

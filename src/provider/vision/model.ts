@@ -24,13 +24,29 @@ export function createVisionModelGetter(): {
 
 			visionModelPromise = (async () => {
 				const id = getConfiguredVisionModelId() ?? DEFAULT_VISION_MODEL_ID;
+				logger.info(`[VisionModel] Looking for model: ${id}`);
+
 				const models = await vscode.lm.selectChatModels({ id });
 				if (models.length > 0) {
-					logger.info(`Vision proxy using model: ${models[0].id}`);
+					logger.info(`[VisionModel] Found model: ${models[0].id}`);
 					visionModel = models[0];
 					return models[0];
 				}
-				logger.warn(`Vision proxy model "${id}" not found`);
+
+				// Try to find any available model
+				logger.warn(`[VisionModel] Model "${id}" not found, searching for alternatives...`);
+				const allModels = await vscode.lm.selectChatModels();
+				logger.info(`[VisionModel] Available models: ${allModels.map(m => m.id).join(', ')}`);
+
+				// Filter for non-MiMo models that might support vision
+				const alternatives = allModels.filter(m => m.vendor !== 'mimo');
+				if (alternatives.length > 0) {
+					logger.info(`[VisionModel] Using alternative: ${alternatives[0].id}`);
+					visionModel = alternatives[0];
+					return alternatives[0];
+				}
+
+				logger.warn('[VisionModel] No alternative models found');
 				return undefined;
 			})();
 
