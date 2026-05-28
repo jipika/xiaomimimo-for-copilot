@@ -33,3 +33,15 @@ export function getMaxTokens(): number | undefined {
 	const value = config.get<number>('maxTokens', 0);
 	return value > 0 ? value : undefined;
 }
+
+export type ThinkingMode = 'auto' | 'enabled' | 'disabled';
+
+/**
+ * Get the configured thinking mode.
+ * 'auto' enables thinking for thinking-capable models,
+ * 'enabled' forces it on, 'disabled' forces it off.
+ */
+export function getThinkingMode(): ThinkingMode {
+	const config = vscode.workspace.getConfiguration(CONFIG_SECTION);
+	return config.get<ThinkingMode>('thinkingMode', 'auto');
+}

@@ -139,6 +139,21 @@
           "minimum": 0,
           "description": "Maximum number of output tokens per request. Set to 0 to use the API default (capped at 131072). Useful for controlling costs."
         },
+        "mimo-copilot.thinkingMode": {
+          "type": "string",
+          "default": "auto",
+          "enum": [
+            "auto",
+            "enabled",
+            "disabled"
+          ],
+          "enumDescriptions": [
+            "Enable thinking for models that support it (thinking models only)",
+            "Always enable thinking mode (requires thinking-capable model)",
+            "Disable thinking mode for all models"
+          ],
+          "description": "Controls the thinking/reasoning mode for MiMo models. 'auto' enables thinking for thinking-capable models, 'enabled' forces it on, 'disabled' forces it off."
+        },
         "mimo-copilot.modelIdOverrides": {
           "type": "object",
           "default": {

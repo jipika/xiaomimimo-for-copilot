@@ -49,6 +49,9 @@ export interface MiMoRequest {
 	stream_options?: {
 		include_usage: boolean;
 	};
+	chat_template_kwargs?: {
+		enable_thinking?: boolean;
+	};
 }
 
 export interface MiMoUsage {
