@@ -2,6 +2,7 @@ import vscode from 'vscode';
 import { WALKTHROUGH_ID, WELCOME_SHOWN_KEY } from './consts';
 import { logger } from './logger';
 import { MiMoChatProvider } from './provider';
+import { setVisionProxyModel } from './provider/vision/model';
 
 let activeProvider: MiMoChatProvider | undefined;
 
@@ -16,6 +17,7 @@ export function activate(context: vscode.ExtensionContext) {
 		vscode.commands.registerCommand('mimo-copilot.openSettings', () =>
 			vscode.commands.executeCommand('workbench.action.openSettings', 'mimo-copilot'),
 		),
+		vscode.commands.registerCommand('mimo-copilot.setVisionModel', () => setVisionProxyModel()),
 	);
 
 	try {

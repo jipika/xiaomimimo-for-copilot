@@ -53,8 +53,8 @@ export async function prepareChatRequest({
 	const enableThinking =
 		thinkingMode === 'enabled' ? true : thinkingMode === 'disabled' ? false : isThinkingModel;
 
-	// Strip images for models that don't support vision
-	const resolvedMessages = stripImagesIfNeeded(messages, modelDef);
+	// Strip images for models that don't support vision (uses vision proxy to describe images)
+	const resolvedMessages = await stripImagesIfNeeded(messages, modelDef);
 	const mimoMessages = convertMessages(resolvedMessages, isThinkingModel);
 	const tools = modelDef?.capabilities.toolCalling ? convertTools(options.tools) : undefined;
 

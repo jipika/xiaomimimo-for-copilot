@@ -69,6 +69,10 @@
       {
         "command": "mimo-copilot.showLogs",
         "title": "MiMo: Show Logs"
+      },
+      {
+        "command": "mimo-copilot.setVisionModel",
+        "title": "MiMo: Set Vision Proxy Model"
       }
     ],
     "walkthroughs": [
@@ -167,6 +171,16 @@
           "minimum": -1,
           "maximum": 1.0,
           "description": "Nucleus sampling parameter (0.01-1.0). Controls diversity. Set to -1 to use API default (0.95). Recommended: adjust either temperature or top_p, not both."
+        },
+        "mimo-copilot.visionModel": {
+          "type": "string",
+          "default": "copilot",
+          "description": "Model ID to use for describing images when the selected MiMo model doesn't support vision (mimo-v2.5-pro, mimo-v2-flash). Uses Copilot's built-in vision model by default."
+        },
+        "mimo-copilot.visionPrompt": {
+          "type": "string",
+          "default": "Describe all image attachments in this message.\n\nIf there is one image, describe it directly.\nIf there are multiple images:\n1. Describe each image separately, preserving their order.\n2. Then provide a combined description explaining the overall context and relationships across the images.\n\nReturn one concise factual description suitable for inserting into a text-only chat prompt. Include visible text, objects, UI elements, people, and relevant context. Do not invent details.",
+          "description": "Prompt sent to the vision proxy model when describing image attachments."
         },
         "mimo-copilot.modelIdOverrides": {
           "type": "object",
