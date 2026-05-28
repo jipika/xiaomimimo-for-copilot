@@ -1,5 +1,6 @@
 import vscode from 'vscode';
 import { logger } from '../../logger';
+import { MODELS } from '../../consts';
 import { DEFAULT_VISION_MODEL_ID, IMAGE_DESCRIPTION_PROMPT } from './consts';
 
 /**
@@ -33,13 +34,17 @@ export function createVisionModelGetter(): {
 					return models[0];
 				}
 
-				// Try to find any available model
+				// Try to find any available model that supports vision
 				logger.warn(`[VisionModel] Model "${id}" not found, searching for alternatives...`);
 				const allModels = await vscode.lm.selectChatModels();
 				logger.info(`[VisionModel] Available models: ${allModels.map(m => m.id).join(', ')}`);
 
-				// Filter for non-MiMo models that might support vision
-				const alternatives = allModels.filter(m => m.vendor !== 'mimo');
+				// Prefer MiMo models with vision support, then other models
+				const visionCapableMiMo = MODELS.filter(m => m.capabilities.imageInput).map(m => m.id);
+				const alternatives = allModels.filter(m =>
+					visionCapableMiMo.includes(m.id) || m.vendor !== 'mimo'
+				);
+
 				if (alternatives.length > 0) {
 					logger.info(`[VisionModel] Using alternative: ${alternatives[0].id}`);
 					visionModel = alternatives[0];
@@ -65,7 +70,12 @@ export function createVisionModelGetter(): {
  */
 export async function setVisionProxyModel(): Promise<void> {
 	const allModels = await vscode.lm.selectChatModels();
-	const candidates = allModels.filter((m) => m.vendor !== 'mimo');
+
+	// Include MiMo models that support vision (like mimo-v2.5) and non-MiMo models
+	const visionCapableMiMo = MODELS.filter(m => m.capabilities.imageInput).map(m => m.id);
+	const candidates = allModels.filter((m) =>
+		visionCapableMiMo.includes(m.id) || m.vendor !== 'mimo'
+	);
 
 	if (candidates.length === 0) {
 		vscode.window.showInformationMessage('No vision-capable models available.');
@@ -76,7 +86,7 @@ export async function setVisionProxyModel(): Promise<void> {
 
 	const items = candidates.map((m) => ({
 		label: m.id,
-		description: m.vendor,
+		description: m.vendor === 'mimo' ? 'MiMo (vision capable)' : m.vendor,
 		detail: m.id === currentId ? '(current)' : undefined,
 	}));
 

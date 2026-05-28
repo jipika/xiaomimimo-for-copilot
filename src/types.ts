@@ -122,4 +122,6 @@ export interface ModelDefinition {
 		thinking: boolean;
 	};
 	requiresThinkingParam: boolean;
+	/** Whether the model natively supports vision (vs using a proxy). */
+	nativeVision?: boolean;
 }

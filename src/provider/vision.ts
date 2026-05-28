@@ -4,17 +4,16 @@ import type { ModelDefinition } from '../types';
 import { createVisionResolver } from './vision/resolve';
 
 /**
- * Strip image parts from messages when the model doesn't support vision.
- * Uses vision proxy to describe images when available, otherwise strips them.
+ * Process images for models without native vision support.
+ * Uses vision proxy to describe images, then passes descriptions to the model.
  */
 export async function stripImagesIfNeeded(
 	messages: readonly vscode.LanguageModelChatRequestMessage[],
 	modelDef: ModelDefinition | undefined,
 ): Promise<readonly vscode.LanguageModelChatRequestMessage[]> {
-	logger.info(`[Vision] Checking model: ${modelDef?.id}, imageInput: ${modelDef?.capabilities.imageInput}`);
-
-	if (modelDef?.capabilities.imageInput) {
-		logger.info(`[Vision] Model supports vision, passing images through`);
+	// Check if model has native vision support
+	if (modelDef?.nativeVision) {
+		logger.info(`[Vision] Model "${modelDef.id}" has native vision support, passing images through`);
 		return messages;
 	}
 
@@ -28,20 +27,20 @@ export async function stripImagesIfNeeded(
 		}
 	}
 
-	logger.info(`[Vision] Found ${imageCount} images in messages`);
+	logger.info(`[Vision] Found ${imageCount} images in messages for model "${modelDef?.id}"`);
 
 	if (imageCount === 0) {
 		return messages;
 	}
 
 	logger.info(
-		`[Vision] Model "${modelDef?.id}" does not support vision. Using vision proxy to describe ${imageCount} image(s).`,
+		`[Vision] Model "${modelDef?.id}" does not have native vision. Using vision proxy to describe ${imageCount} image(s).`,
 	);
 
 	const resolver = createVisionResolver();
 	try {
 		const result = await resolver.resolve(messages);
-		logger.info(`[Vision] Successfully resolved images`);
+		logger.info(`[Vision] Successfully resolved ${imageCount} images via proxy`);
 		return result;
 	} catch (error) {
 		logger.error('[Vision] Proxy failed, stripping images:', error);

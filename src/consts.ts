@@ -37,6 +37,10 @@ export const API_KEY_REQUIRED_DETAIL = 'Please run MiMo: Set API Key to configur
  * https://platform.xiaomimimo.com/docs/zh-CN/quick-start/model
  *
  * maxInputTokens = contextWindow - maxOutputTokens
+ *
+ * Note: imageInput is set to true for ALL models so VS Code Copilot Chat
+ * will pass images to us. For models without native vision support
+ * (mimo-v2.5-pro, mimo-v2-flash), we use a vision proxy model internally.
  */
 export const MODELS: ModelDefinition[] = [
 	{
@@ -49,10 +53,11 @@ export const MODELS: ModelDefinition[] = [
 		maxOutputTokens: 131072, // 128K
 		capabilities: {
 			toolCalling: true,
-			imageInput: false,
+			imageInput: true, // Advertised as true; vision proxy handles non-vision models
 			thinking: true,
 		},
 		requiresThinkingParam: false,
+		nativeVision: false,
 	},
 	{
 		id: 'mimo-v2.5',
@@ -68,6 +73,7 @@ export const MODELS: ModelDefinition[] = [
 			thinking: true,
 		},
 		requiresThinkingParam: false,
+		nativeVision: true,
 	},
 	{
 		id: 'mimo-v2-flash',
@@ -79,9 +85,10 @@ export const MODELS: ModelDefinition[] = [
 		maxOutputTokens: 65536, // 64K
 		capabilities: {
 			toolCalling: true,
-			imageInput: false,
+			imageInput: true, // Advertised as true; vision proxy handles non-vision models
 			thinking: false, // disabled by default per docs
 		},
 		requiresThinkingParam: false,
+		nativeVision: false,
 	},
 ];
